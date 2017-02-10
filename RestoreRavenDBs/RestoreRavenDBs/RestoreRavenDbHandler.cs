@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -6,9 +7,11 @@ using System.Configuration;
 using System.Security.Cryptography;
 using System.Threading;
 using Raven.Abstractions.Data;
+using Raven.Abstractions.Smuggler;
 using Raven.Client;
 using RestoreRavenDBs.Extensions;
 using Serilog;
+using Raven.Smuggler;
 
 namespace RestoreRavenDBs
 {
@@ -19,6 +22,7 @@ namespace RestoreRavenDBs
 
         private readonly string _backupDir;
         private readonly string _ravenDumpExtension;
+        private readonly double _breakTimeSeconds;
 
         public RestoreRavenDbHandler(IDocumentStore store, ILogger logger)
         {
@@ -27,6 +31,7 @@ namespace RestoreRavenDBs
 
             _backupDir = ConfigurationManager.AppSettings["DefaultBackupDir"];
             _ravenDumpExtension = ".ravendump";
+            _breakTimeSeconds = 5;
         }
 
         public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, string backupDir) : this(store, logger)
@@ -34,290 +39,225 @@ namespace RestoreRavenDBs
             _backupDir = backupDir;
         }
 
-        public void SmugglerImport(string databaseName = null)
+        //TODO: need add condition like in Export
+        public void SmugglerFullImport(string databaseName = null)
         {
             var searchFilePattern = "*" + _ravenDumpExtension;
 
             var files = string.IsNullOrWhiteSpace(databaseName)
-                ? new[] { Path.ChangeExtension(databaseName, _ravenDumpExtension) }.OrderBy(x => x)
-                : Directory.GetFiles(_backupDir, searchFilePattern, SearchOption.TopDirectoryOnly).OrderBy(x => x);
+                ? new[] { databaseName }
+                : Directory.GetFiles(_backupDir, searchFilePattern, SearchOption.TopDirectoryOnly);
 
-            foreach (var dbName in files.Select(Path.GetFileNameWithoutExtension))
+            var databaseNamesInOrder = files.Select(Path.GetFileNameWithoutExtension).OrderBy(x => x);
+
+            foreach (var dbName in databaseNamesInOrder)
             {
                 DeleteDatabase(dbName);
             }
 
-            _logger.Information("Done Deleting {0} database", files.Count());
+            _logger.Information("Done Deleting {0} database", databaseNamesInOrder.Count());
 
-            foreach (var fileName in files)
+            foreach (var dbName in databaseNamesInOrder)
             {
-                _logger.Information("The file to restore = {0}", fileName);
-
-                var dbName = Path.GetFileNameWithoutExtension(fileName);
+                _logger.Information("The database to restore = {0}", dbName);
 
                 CreateDatabase(dbName);
 
-                var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.exe";
-                var smugglerArgs = @"in http://localhost:8080 " + fileName + " --database=" + dbName +
-                                   " --negative-metadata-filter:@id=Raven/Encryption/Verification";
-
-                try
-                {
-                    _logger.Information("smugglerPath = " + smugglerPath);
-                    _logger.Information("smugglerArgs = " + smugglerArgs);
-                    using (var proc = new Process
-                    {
-                        StartInfo =
-                        {
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            FileName = smugglerPath,
-                            Arguments = smugglerArgs
-                        }
-                    })
-                    {
-                        proc.Start();
-
-                        // To avoid deadlocks, always read the output stream first and then wait.
-                        var output = proc.StandardOutput.ReadToEnd();
-                        proc.WaitForExit();
-                        var code = proc.ExitCode;
-                        _logger.Information($"smuggler output = {output}");
-                        if (code != 0)
-                        {
-                            _logger.Warning($"smuggler failed the first time with this output {output}");
-                            //try again
-                            _logger.Warning($"sleeping for 15 seconds before trying again to backup {dbName}");
-                            Thread.Sleep(TimeSpan.FromSeconds(15));
-                            _logger.Information("trying to export again");
-                            using (var proc2 = new Process
-                            {
-                                StartInfo =
-                                {
-                                    UseShellExecute = false,
-                                    RedirectStandardOutput = true,
-                                    FileName = smugglerPath,
-                                    Arguments = smugglerArgs
-                                }
-                            })
-                            {
-
-                                proc2.Start();
-                                // To avoid deadlocks, always read the output stream first and then wait.
-                                var secondoutput = proc2.StandardOutput.ReadToEnd();
-                                proc2.WaitForExit();
-                                var code2 = proc2.ExitCode;
-                                if (code2 != 0)
-                                    throw new Exception(
-                                        $"Process {smugglerPath} didn't work with arguments {smugglerArgs}.  The output is {secondoutput}");
-
-                                Thread.Sleep(TimeSpan.FromSeconds(10));
-                                _logger.Information($"Succeeded the second time for {dbName}");
-                            }
-                        }
-                        else
-                            Thread.Sleep(TimeSpan.FromSeconds(10));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, $"An error occurred while trying to backup {dbName} with exception:{ex}");
-                }
+                ImportDatabaseNativeProcess(dbName);
             }
         }
 
-        //TODO: Comming soon
-        //public void SmugglerExportViaSmugglerNativeProcess()
-        //{
-        //    var sysCommands = store.DatabaseCommands.ForSystemDatabase();
-
-
-        //    var index = 0;
-        //    var csDbList = new List<string>();
-
-        //    var dbs = sysCommands.GetDatabaseNames(100, index);
-
-        //    while (dbs.Any())
-        //    {
-        //        csDbList.AddRange(from dbName in dbs
-        //                          where dbName.StartsWith("cs", StringComparison.OrdinalIgnoreCase)
-        //                          let doc = sysCommands.Get("Raven/Databases/" + dbName)
-        //                          let d = doc.DataAsJson
-        //                          let disabled = d.Value<bool>("Disabled")
-        //                          where !disabled
-        //                          select dbName);
-
-        //        index += dbs.Length;
-
-        //        dbs = store.DatabaseCommands.ForSystemDatabase().GetDatabaseNames(100, index);
-        //    }
-        //    _logger.Information("Total dbs to backup = " + csDbList.Count);
-
-        //    foreach (var dbName in csDbList)
-        //    {
-        //        _logger.Information("Backing up database " + dbName);
-
-        //        var smugglerArgs = @"out http://localhost:8080/databases/" + dbName + @" C:\Backups-Raven\" + dbName +
-        //                           ".raven";
-        //        _logger.Information("smugglerArgs = " + smugglerArgs);
-        //        var proc = Process.Start(AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.exe", smugglerArgs);
-        //        if (proc != null)
-        //        {
-        //            proc.WaitForExit();
-        //            var code = proc.ExitCode;
-        //            if (code != 0)
-        //                Console.ReadLine();
-
-        //            _logger.Information("exit code = " + code);
-        //            Thread.Sleep(1000);
-        //        }
-        //        else
-        //            _logger.Information("Process didn't work.");
-        //    }
-        //}
-
-        //TODO: Comming soon
-        public void ExportDatabaseViaSmugglerApi(string databaseName)
+        //TODO: consider this method
+        public void SmugglerFullExport(string databaseName)
         {
+            ExportDatabaseNativeProcess(databaseName);
         }
 
-        //TODO: Comming soon
-        //TODO: we use Console Process and Smuggler.exe 3.5 for this
-        public void ImportDatabaseViaSmugglerNativeProcess(string databaseName)
+        public void SmugglerFullExport(Func<string, bool> conditionForDatabaseName = null)
         {
-            _logger.Information("The file to restore = {0}", databaseName);
+            var sysCommands = _store.DatabaseCommands.ForSystemDatabase();
+
+            var index = 0;
+            var filteredDatabaseNames = new List<string>();
+
+            var databaseNames = _store.DatabaseCommands.GlobalAdmin.GetDatabaseNames(100, index);
+
+            while (databaseNames.Any())
+            {
+                filteredDatabaseNames.AddRange(from dbName in databaseNames
+                                               where conditionForDatabaseName != null && conditionForDatabaseName(dbName)
+                                               let doc = sysCommands.Get("Raven/Databases/" + dbName)
+                                               let d = doc.DataAsJson
+                                               let disabled = d.Value<bool>("Disabled")
+                                               where !disabled
+                                               select dbName);
+
+                index += databaseNames.Length;
+
+                databaseNames = _store.DatabaseCommands.GlobalAdmin.GetDatabaseNames(100, index);
+            }
+
+            _logger.Information("Total databases to backup = " + filteredDatabaseNames.Count);
+
+            foreach (var dbName in filteredDatabaseNames)
+            {
+                ExportDatabaseNativeProcess(dbName);
+            }
+        }
+
+        //We use Console Process and Smuggler.exe 3.5 for this
+        public void ExportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
+        {
+            _logger.Information("Backing up database " + databaseName);
 
             var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
-            var dbName = Path.GetFileNameWithoutExtension(databaseName);
 
-            CreateDatabase(dbName);
+            var actionPath = $"out {_store.Url}databases/ ";
 
-            //TODO: need to change this on parameters
-            var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.exe";
-            var smugglerArgs = @"in http://localhost:8080 " + fileName + " --database=" + dbName +
-                               " --negative-metadata-filter:@id=Raven/Encryption/Verification";
+            var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.3.5.exe";
+            var smugglerArgs = string.Concat(actionPath, databaseName, fileName, additionalSmugglerArguments);
 
             try
             {
-                _logger.Information("smugglerPath = {0}", smugglerPath);
-                _logger.Information("smugglerArgs = {0}", smugglerArgs);
-                using (var proc = new Process
+                var exitCode = StartSmugglerProcess(smugglerPath, smugglerArgs);
+
+                //TODO probably need to add this event or something and alos consider other way
+                if (exitCode != 0)
                 {
-                    StartInfo =
-                        {
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            FileName = smugglerPath,
-                            Arguments = smugglerArgs
-                        }
-                })
+                    _logger.Warning($"Process {smugglerPath} didn't work with arguments {smugglerArgs}");
+                }
+                else
                 {
-                    proc.Start();
-
-                    // To avoid deadlocks, always read the output stream first and then wait.
-                    var output = proc.StandardOutput.ReadToEnd();
-                    proc.WaitForExit();
-                    var code = proc.ExitCode;
-                    _logger.Information($"smuggler output = {output}");
-                    if (code != 0)
-                    {
-                        _logger.Warning($"smuggler failed the first time with this output {output}");
-                        //try again
-                        _logger.Warning($"sleeping for 15 seconds before trying again to backup {dbName}");
-                        Thread.Sleep(TimeSpan.FromSeconds(15));
-                        _logger.Information("trying to export again");
-                        using (var proc2 = new Process
-                        {
-                            StartInfo =
-                                {
-                                    UseShellExecute = false,
-                                    RedirectStandardOutput = true,
-                                    FileName = smugglerPath,
-                                    Arguments = smugglerArgs
-                                }
-                        })
-                        {
-
-                            proc2.Start();
-                            // To avoid deadlocks, always read the output stream first and then wait.
-                            var secondoutput = proc2.StandardOutput.ReadToEnd();
-                            proc2.WaitForExit();
-                            var code2 = proc2.ExitCode;
-                            if (code2 != 0)
-                                throw new Exception(
-                                    $"Process {smugglerPath} didn't work with arguments {smugglerArgs}.  The output is {secondoutput}");
-
-                            Thread.Sleep(TimeSpan.FromSeconds(10));
-                            _logger.Information($"Succeeded the second time for {dbName}");
-                        }
-                    }
-                    else
-                        Thread.Sleep(TimeSpan.FromSeconds(10));
+                    _logger.Information($"Export the database {databaseName} was successful");
                 }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"An error occurred while trying to backup {dbName} with exception:{ex}");
+                _logger.Error(ex, $"An error occurred while trying to export {databaseName} with exception: {ex}");
+            }
+
+            Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
+        }
+
+        //TODO: current version RavenDb Client 3.5, we use Smuggler.exe 3.0 because Smuggler.exe 3.5 does not exist SmugglerApi
+        public void ExportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToExport = ItemType.Documents)
+        {
+            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
+
+            var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
+            {
+                OperateOnTypes = itemTypeToExport,
+                Incremental = false
+            });
+
+            var exportOptions = new SmugglerExportOptions<RavenConnectionStringOptions>
+            {
+                ToFile = fileName,
+                From = new RavenConnectionStringOptions
+                {
+                    DefaultDatabase = databaseName,
+                    Url = _store.Url
+                }
+            };
+
+            //TODO: consider this
+            var operationState = smugglerApi.ExportData(exportOptions).Result;
+        }
+
+        //We use Console Process and Smuggler.exe 3.5 for this
+        public void ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
+        {
+            _logger.Information("The database to restore = {0}", databaseName);
+
+            CreateDatabase(databaseName);
+
+            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
+
+            var actionPath = $"in {_store.Url} ";
+
+            var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.3.5.exe";
+            var smugglerArgs = string.Concat(actionPath,
+                fileName, " --database=", databaseName,
+                " --negative-metadata-filter:@id=Raven/Encryption/Verification",
+                additionalSmugglerArguments);
+
+            try
+            {
+                var exitCode = StartSmugglerProcess(smugglerPath, smugglerArgs);
+
+                // if we have fail, we try do it again
+                if (exitCode != 0)
+                {
+                    _logger.Warning("Smuggler failed the first time");
+                    _logger.Warning($"Sleeping for {_breakTimeSeconds} seconds before trying again to backup {databaseName}");
+                    Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
+
+                    _logger.Information("Trying to export again");
+
+                    var exitCodeTry = StartSmugglerProcess(smugglerPath, smugglerArgs);
+                    if (exitCodeTry != 0)
+                    {
+                        //TODO probably need to add this event or something
+                        throw new Exception($"Process {smugglerPath} didn't work with arguments {smugglerArgs}");
+                    }
+
+                    Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
+                    _logger.Information($"Succeeded the second time for {databaseName}");
+                }
+                else
+                    Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"An error occurred while trying to backup {databaseName} with exception: {ex}");
             }
         }
 
-        //TODO: Comming soon
         //TODO: current version RavenDb Client 3.5, we use Smuggler.exe 3.0 because Smuggler.exe 3.5 does not exist SmugglerApi
-        public void ImportDatabaseViaSmugglerApi(string databaseName)
+        public void ImportDatabaseViaSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
         {
-            //_logger.Information("The file to import = {0}", databaseName);
+            _logger.Information("The file to import = {0}", databaseName);
 
-            //var dbName = Path.GetFileNameWithoutExtension(databaseName);
+            CreateDatabase(databaseName);
 
-            //CreateDatabase(dbName);
+            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
 
-            //var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.3.5.exe";
-            //var smugglerArgs = @"in http://localhost:8080 " + fileName + " --database=" + dbName +
-            //                   " --negative-metadata-filter:@id=Raven/Encryption/Verification";
+            CreateDatabase(databaseName);
 
-            //try
-            //{
-            //    var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
-            //    {
-            //        OperateOnTypes = ItemType.Documents | ItemType.Indexes | ItemType.Transformers,
-            //        Incremental = false,
-            //    });
 
-            //    var exportOptions = new SmugglerExportOptions<RavenConnectionStringOptions>
-            //    {
-            //        ToFile = backupName,
-            //        From = new RavenConnectionStringOptions
-            //        {
-            //            DefaultDatabase = dbName,
-            //            Url = _store.Url,
-            //        }
-            //    };
+            var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
+            {
+                OperateOnTypes = itemTypeToImport,
+                Incremental = false
+            });
 
-            //    await smugglerApi.ExportData(exportOptions);
+            var importOptions = new SmugglerImportOptions<RavenConnectionStringOptions>
+            {
+                FromFile = fileName,
+                To = new RavenConnectionStringOptions
+                {
+                    DefaultDatabase = databaseName,
+                    Url = _store.Url
+                }
+            };
 
-            //}
-            //catch (Exception ex)
-            //{
-            //    _logger.Error(ex, $"An error occurred while trying to backup {dbName} with exception: {ex}");
-            //}
+            smugglerApi.ImportData(importOptions, null).Wait();
         }
 
-        public void CreateDatabase(string databaseName, params string[] bundles)
+        public void CreateDatabase(string databaseName, params string[] additionalBundles)
         {
-            var dbName = Path.GetFileNameWithoutExtension(databaseName);
-
-            if (_store.DatabaseExists(dbName)) return;
+            if (_store.DatabaseExists(databaseName)) return;
 
             string[] defaultBundles = { "Encryption", "Compression" };
             var key = GenerateKey();
 
             _store.DatabaseCommands.GlobalAdmin.CreateDatabase(new DatabaseDocument
             {
-                Id = dbName,
+                Id = databaseName,
                 Settings =
                 {
-                    {"Raven/DataDir", "~\\" + dbName},
-                    {"Raven/ActiveBundles", string.Join(";", defaultBundles.Union(bundles))},
+                    {"Raven/DataDir", "~\\" + databaseName},
+                    {"Raven/ActiveBundles", string.Join(";", defaultBundles.Union(additionalBundles))},
                 },
                 SecuredSettings =
                 {
@@ -333,15 +273,41 @@ namespace RestoreRavenDBs
 
         public void DeleteDatabase(string databaseName)
         {
-            var dbName = Path.GetFileNameWithoutExtension(databaseName);
+            if (!_store.DatabaseExists(databaseName)) return;
 
-            if (!_store.DatabaseExists(dbName)) return;
+            _logger.Information("Deleting database = {0}", databaseName);
 
-            _logger.Information("Deleting database = {0}", dbName);
-
-            _store.DatabaseCommands.GlobalAdmin.DeleteDatabase(dbName, hardDelete: true);
+            _store.DatabaseCommands.GlobalAdmin.DeleteDatabase(databaseName, hardDelete: true);
 
             _logger.Information("Deletion complete");
+        }
+
+        private int StartSmugglerProcess(string smugglerPath, string smugglerArgs)
+        {
+            _logger.Information("Smuggler Path = {0}", smugglerPath);
+            _logger.Information("Smuggler Args = {0}", smugglerArgs);
+
+            using (var proc = new Process
+            {
+                StartInfo =
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    FileName = smugglerPath,
+                    Arguments = smugglerArgs
+                }
+            })
+            {
+                proc.Start();
+
+                var output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit();
+                var code = proc.ExitCode;
+
+                _logger.Information($"Smuggler process output = {output}");
+
+                return code;
+            }
         }
 
         private static string GenerateKey()
