@@ -1,108 +1,30 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Configuration;
-using System.Security.Cryptography;
 using System.Threading;
 using Raven.Abstractions.Data;
 using Raven.Abstractions.Smuggler;
 using Raven.Client;
-using RestoreRavenDBs.Extensions;
-using Serilog;
 using Raven.Smuggler;
+using Serilog;
 
-namespace RestoreRavenDBs
+namespace RestoreRavenDBs.Common
 {
-    public class RestoreRavenDbHandler
+    public class SmugglerWrapper : ISmugglerWrapper
     {
         private readonly IDocumentStore _store;
         private readonly ILogger _logger;
 
-        private readonly string _backupDir;
-        private readonly string _ravenDumpExtension;
         private readonly double _breakTimeSeconds;
+        private readonly string _ravenDumpExtension;
 
-        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger)
+        public SmugglerWrapper(IDocumentStore store, ILogger logger)
         {
             _store = store;
             _logger = logger;
 
-            _backupDir = ConfigurationManager.AppSettings["DefaultBackupDir"];
             _ravenDumpExtension = ".ravendump";
             _breakTimeSeconds = 5;
-        }
-
-        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, string backupDir) : this(store, logger)
-        {
-            _backupDir = backupDir;
-        }
-
-        //TODO: need add condition like in Export
-        public void SmugglerFullImport(string databaseName = null)
-        {
-            var searchFilePattern = "*" + _ravenDumpExtension;
-
-            var files = string.IsNullOrWhiteSpace(databaseName)
-                ? new[] { databaseName }
-                : Directory.GetFiles(_backupDir, searchFilePattern, SearchOption.TopDirectoryOnly);
-
-            var databaseNamesInOrder = files.Select(Path.GetFileNameWithoutExtension).OrderBy(x => x);
-
-            foreach (var dbName in databaseNamesInOrder)
-            {
-                DeleteDatabase(dbName);
-            }
-
-            _logger.Information("Done Deleting {0} database", databaseNamesInOrder.Count());
-
-            foreach (var dbName in databaseNamesInOrder)
-            {
-                _logger.Information("The database to restore = {0}", dbName);
-
-                CreateDatabase(dbName);
-
-                ImportDatabaseNativeProcess(dbName);
-            }
-        }
-
-        //TODO: consider this method
-        public void SmugglerFullExport(string databaseName)
-        {
-            ExportDatabaseNativeProcess(databaseName);
-        }
-
-        public void SmugglerFullExport(Func<string, bool> conditionForDatabaseName = null)
-        {
-            var sysCommands = _store.DatabaseCommands.ForSystemDatabase();
-
-            var index = 0;
-            var filteredDatabaseNames = new List<string>();
-
-            var databaseNames = _store.DatabaseCommands.GlobalAdmin.GetDatabaseNames(100, index);
-
-            while (databaseNames.Any())
-            {
-                filteredDatabaseNames.AddRange(from dbName in databaseNames
-                                               where conditionForDatabaseName != null && conditionForDatabaseName(dbName)
-                                               let doc = sysCommands.Get("Raven/Databases/" + dbName)
-                                               let d = doc.DataAsJson
-                                               let disabled = d.Value<bool>("Disabled")
-                                               where !disabled
-                                               select dbName);
-
-                index += databaseNames.Length;
-
-                databaseNames = _store.DatabaseCommands.GlobalAdmin.GetDatabaseNames(100, index);
-            }
-
-            _logger.Information("Total databases to backup = " + filteredDatabaseNames.Count);
-
-            foreach (var dbName in filteredDatabaseNames)
-            {
-                ExportDatabaseNativeProcess(dbName);
-            }
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
@@ -169,8 +91,6 @@ namespace RestoreRavenDBs
         {
             _logger.Information("The database to restore = {0}", databaseName);
 
-            CreateDatabase(databaseName);
-
             var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
 
             var actionPath = $"in {_store.Url} ";
@@ -214,16 +134,11 @@ namespace RestoreRavenDBs
         }
 
         //TODO: current version RavenDb Client 3.5, we use Smuggler.exe 3.0 because Smuggler.exe 3.5 does not exist SmugglerApi
-        public void ImportDatabaseViaSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
+        public void ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
         {
             _logger.Information("The file to import = {0}", databaseName);
 
-            CreateDatabase(databaseName);
-
             var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
-
-            CreateDatabase(databaseName);
-
 
             var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
             {
@@ -242,44 +157,6 @@ namespace RestoreRavenDBs
             };
 
             smugglerApi.ImportData(importOptions, null).Wait();
-        }
-
-        public void CreateDatabase(string databaseName, params string[] additionalBundles)
-        {
-            if (_store.DatabaseExists(databaseName)) return;
-
-            string[] defaultBundles = { "Encryption", "Compression" };
-            var key = GenerateKey();
-
-            _store.DatabaseCommands.GlobalAdmin.CreateDatabase(new DatabaseDocument
-            {
-                Id = databaseName,
-                Settings =
-                {
-                    {"Raven/DataDir", "~\\" + databaseName},
-                    {"Raven/ActiveBundles", string.Join(";", defaultBundles.Union(additionalBundles))},
-                },
-                SecuredSettings =
-                {
-                    {"Raven/Encryption/Key", key},
-                    {
-                        "Raven/Encryption/Algorithm", "System.Security.Cryptography.RijndaelManaged, mscorlib"
-                    },
-                    {"Raven/Encryption/KeyBitsPreference", "256"},
-                    {"Raven/Encryption/EncryptIndexes", "True"}
-                }
-            });
-        }
-
-        public void DeleteDatabase(string databaseName)
-        {
-            if (!_store.DatabaseExists(databaseName)) return;
-
-            _logger.Information("Deleting database = {0}", databaseName);
-
-            _store.DatabaseCommands.GlobalAdmin.DeleteDatabase(databaseName, hardDelete: true);
-
-            _logger.Information("Deletion complete");
         }
 
         private int StartSmugglerProcess(string smugglerPath, string smugglerArgs)
@@ -307,15 +184,6 @@ namespace RestoreRavenDBs
                 _logger.Information($"Smuggler process output = {output}");
 
                 return code;
-            }
-        }
-
-        private static string GenerateKey()
-        {
-            using (var crypt = Rijndael.Create())
-            {
-                crypt.GenerateKey();
-                return Convert.ToBase64String(crypt.Key);
             }
         }
     }

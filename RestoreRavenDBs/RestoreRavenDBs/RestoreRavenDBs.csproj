@@ -43,7 +43,7 @@
     </Reference>
     <Reference Include="Raven.Smuggler.3.0, Version=3.0.0.0, Culture=neutral, PublicKeyToken=37f41c7f99471593, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>Common\Raven.Smuggler.3.0.exe</HintPath>
+      <HintPath>RavenSmuggler\Raven.Smuggler.3.0.exe</HintPath>
     </Reference>
     <Reference Include="Serilog, Version=2.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10, processorArchitecture=MSIL">
       <HintPath>..\packages\Serilog.2.4.0\lib\net46\Serilog.dll</HintPath>
@@ -69,18 +69,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Common\ISmugglerWrapper.cs" />
     <Compile Include="Extensions\DocumentStoreExtension.cs" />
+    <Compile Include="Handlers\IRestoreRavenDbHandler.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RestoreRavenDbHandler.cs" />
+    <Compile Include="Handlers\RestoreRavenDbHandler.cs" />
+    <Compile Include="Common\SmugglerWrapper.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Common\Raven.Smuggler.3.0.exe" />
-    <Content Include="Common\Raven.Smuggler.3.5.exe">
+    <Content Include="RavenSmuggler\Raven.Smuggler.3.0.exe" />
+    <Content Include="RavenSmuggler\Raven.Smuggler.3.5.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
