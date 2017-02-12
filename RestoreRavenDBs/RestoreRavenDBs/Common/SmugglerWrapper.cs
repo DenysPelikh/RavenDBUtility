@@ -30,28 +30,20 @@ namespace RestoreRavenDBs.Common
         //We use Console Process and Smuggler.exe 3.5 for this
         public void ExportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
         {
-            _logger.Information("Backing up database " + databaseName);
+            _logger.Information("Export database {0} with process", databaseName);
 
-            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
+            var fileName = $"{databaseName}{_ravenDumpExtension}";
 
-            var actionPath = $"out {_store.Url}databases/ ";
+            var actionPath = $"out {_store.Url} ";
+            var smugglerOptionArguments = $" {string.Join(";", additionalSmugglerArguments)}";
 
-            var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.3.5.exe";
-            var smugglerArgs = string.Concat(actionPath, databaseName, fileName, additionalSmugglerArguments);
+            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.3.5.exe");
+            var smugglerArgs = string.Concat(actionPath, fileName, " --database=", databaseName, smugglerOptionArguments);
 
             try
             {
+                //TODO probably need to add this event when exitCode != 0 or something and alos consider other way
                 var exitCode = StartSmugglerProcess(smugglerPath, smugglerArgs);
-
-                //TODO probably need to add this event or something and alos consider other way
-                if (exitCode != 0)
-                {
-                    _logger.Warning($"Process {smugglerPath} didn't work with arguments {smugglerArgs}");
-                }
-                else
-                {
-                    _logger.Information($"Export the database {databaseName} was successful");
-                }
             }
             catch (Exception ex)
             {
@@ -61,10 +53,11 @@ namespace RestoreRavenDBs.Common
             Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
         }
 
-        //TODO: current version RavenDb Client 3.5, we use Smuggler.exe 3.0 because Smuggler.exe 3.5 does not exist SmugglerApi
         public void ExportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToExport = ItemType.Documents)
         {
-            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
+            _logger.Information("Export database {0} with Smuggler Api", databaseName);
+
+            var fileName = $"{databaseName}{_ravenDumpExtension}";
 
             var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
             {
@@ -89,17 +82,15 @@ namespace RestoreRavenDBs.Common
         //We use Console Process and Smuggler.exe 3.5 for this
         public void ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
         {
-            _logger.Information("The database to restore = {0}", databaseName);
+            _logger.Information("Import database {0} with process", databaseName);
 
-            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
+            var fileName = $"{databaseName}{_ravenDumpExtension}";
 
             var actionPath = $"in {_store.Url} ";
+            var smugglerOptionArguments = $" --negative-metadata-filter:@id=Raven/Encryption/Verification {string.Join(";", additionalSmugglerArguments)}";
 
-            var smugglerPath = AppDomain.CurrentDomain.BaseDirectory + @"Raven.Smuggler.3.5.exe";
-            var smugglerArgs = string.Concat(actionPath,
-                fileName, " --database=", databaseName,
-                " --negative-metadata-filter:@id=Raven/Encryption/Verification",
-                additionalSmugglerArguments);
+            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.3.5.exe");
+            var smugglerArgs = string.Concat(actionPath, fileName, " --database=", databaseName, smugglerOptionArguments);
 
             try
             {
@@ -109,7 +100,8 @@ namespace RestoreRavenDBs.Common
                 if (exitCode != 0)
                 {
                     _logger.Warning("Smuggler failed the first time");
-                    _logger.Warning($"Sleeping for {_breakTimeSeconds} seconds before trying again to backup {databaseName}");
+                    _logger.Warning(
+                        $"Sleeping for {_breakTimeSeconds} seconds before trying again to backup {databaseName}");
                     Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
 
                     _logger.Information("Trying to export again");
@@ -117,15 +109,17 @@ namespace RestoreRavenDBs.Common
                     var exitCodeTry = StartSmugglerProcess(smugglerPath, smugglerArgs);
                     if (exitCodeTry != 0)
                     {
-                        //TODO probably need to add this event or something
+                        //TODO probably need to add this event or something, consider optional Exception
                         throw new Exception($"Process {smugglerPath} didn't work with arguments {smugglerArgs}");
                     }
 
                     Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
-                    _logger.Information($"Succeeded the second time for {databaseName}");
+                    _logger.Information("Succeeded the second time for {0}", databaseName);
                 }
                 else
+                {
                     Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
+                }
             }
             catch (Exception ex)
             {
@@ -133,12 +127,11 @@ namespace RestoreRavenDBs.Common
             }
         }
 
-        //TODO: current version RavenDb Client 3.5, we use Smuggler.exe 3.0 because Smuggler.exe 3.5 does not exist SmugglerApi
         public void ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
         {
-            _logger.Information("The file to import = {0}", databaseName);
+            _logger.Information("Import database {0} with Smuggler Api", databaseName);
 
-            var fileName = Path.ChangeExtension(databaseName, _ravenDumpExtension);
+            var fileName = $"{databaseName}{_ravenDumpExtension}";
 
             var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
             {
@@ -181,7 +174,15 @@ namespace RestoreRavenDBs.Common
                 proc.WaitForExit();
                 var code = proc.ExitCode;
 
-                _logger.Information($"Smuggler process output = {output}");
+                if (code != 0)
+                {
+                    _logger.Warning($"Process {smugglerPath} didn't work with arguments {smugglerArgs}");
+                    _logger.Warning($"Smuggler process output = {output}");
+                }
+                else
+                {
+                    _logger.Information($"Smuggler process output = {output}");
+                }
 
                 return code;
             }

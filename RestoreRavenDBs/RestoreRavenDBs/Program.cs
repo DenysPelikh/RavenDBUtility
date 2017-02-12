@@ -31,7 +31,8 @@ namespace RestoreRavenDBs
             Console.WriteLine("2 - Smuggler Full Import");
             Console.WriteLine("3 - Smuggler Full Export specific database");
             Console.WriteLine("4 - Smuggler Full Import specific database");
-            var actionNumber = Convert.ToInt32(Console.ReadLine());
+            int actionNumber;
+            int.TryParse(Console.ReadLine(), out actionNumber);
             Console.Clear();
 
             switch (actionNumber)

@@ -137,7 +137,7 @@ namespace RestoreRavenDBs.Handlers
                 Settings =
                 {
                     {"Raven/DataDir", "~\\" + databaseName},
-                    {"Raven/ActiveBundles", string.Join(";", defaultBundles.Union(additionalBundles))},
+                    {"Raven/ActiveBundles", string.Join(";", defaultBundles.Union(additionalBundles))}
                 },
                 SecuredSettings =
                 {
