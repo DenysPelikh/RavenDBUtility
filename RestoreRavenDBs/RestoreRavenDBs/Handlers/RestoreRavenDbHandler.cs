@@ -21,21 +21,15 @@ namespace RestoreRavenDBs.Handlers
         private readonly string _backupDir;
         private readonly string _ravenDumpExtension;
 
-        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, ISmugglerWrapper smugglerWrapper = null)
+        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, string backupDir = null, ISmugglerWrapper smugglerWrapper = null)
         {
             _store = store;
             _logger = logger;
 
-            _smugglerWrapper = smugglerWrapper ?? new SmugglerWrapper(_store, _logger);
-
-            _backupDir = ConfigurationManager.AppSettings["DefaultBackupDir"];
+            _backupDir = backupDir ?? ConfigurationManager.AppSettings["DefaultBackupDir"];
             _ravenDumpExtension = ".ravendump";
-        }
 
-        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, string backupDir, ISmugglerWrapper smugglerWrapper = null) 
-            : this(store, logger, smugglerWrapper)
-        {
-            _backupDir = backupDir;
+            _smugglerWrapper = smugglerWrapper ?? new SmugglerWrapper(_store, _logger, _backupDir);
         }
 
         public void SmugglerFullExport(Func<string, bool> conditionForDatabaseName = null)

@@ -4,6 +4,7 @@ namespace RestoreRavenDBs.Common
 {
     public interface ISmugglerWrapper
     {
+        string BackupDir { get; set; }
         void ExportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments);
         void ExportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToExport = ItemType.Documents);
         void ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments);
