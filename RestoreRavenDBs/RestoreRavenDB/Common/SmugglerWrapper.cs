@@ -16,7 +16,6 @@ namespace RestoreRavenDB.Common
         private readonly ILogger _logger;
 
         private readonly double _breakTimeSeconds;
-        private readonly string _ravenDumpExtension;
 
         private string _backupDir;
         public string BackupDir
@@ -30,6 +29,11 @@ namespace RestoreRavenDB.Common
                 if (value == null)
                     throw new ArgumentNullException(nameof(value));
 
+                if (value != string.Empty && !Directory.Exists(value))
+                {
+                    Directory.CreateDirectory(value);
+                }
+
                 _backupDir = value;
             }
         }
@@ -42,9 +46,7 @@ namespace RestoreRavenDB.Common
             _store = store;
             _logger = logger;
 
-            _ravenDumpExtension = ".ravendump";
             _breakTimeSeconds = 5;
-
             BackupDir = string.Empty; //From current Dir
         }
 
@@ -198,13 +200,7 @@ namespace RestoreRavenDB.Common
 
         private string GetFilePathFromDatabaseName(string databaseName)
         {
-            var fileName = $"{databaseName}{_ravenDumpExtension}";
-            var filePath = Path.Combine(BackupDir, fileName);
-
-            if (!Directory.Exists(filePath))
-            {
-                Directory.CreateDirectory(filePath);
-            }
+            var filePath = Path.Combine(BackupDir, databaseName);
 
             return filePath;
         }
