@@ -15,6 +15,7 @@ namespace ExportRavenDB2_5.Common
         private readonly double _breakTimeSeconds;
 
         private string _backupDir;
+        private readonly string _ravenDumpExtension;
         public string BackupDir
         {
             get
@@ -45,6 +46,8 @@ namespace ExportRavenDB2_5.Common
 
             _breakTimeSeconds = 5;
             BackupDir = string.Empty; //From current Dir
+
+            _ravenDumpExtension = ".ravendump";
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
@@ -134,6 +137,9 @@ namespace ExportRavenDB2_5.Common
 
         private string GetFilePathFromDatabaseName(string databaseName)
         {
+            if (!databaseName.EndsWith(_ravenDumpExtension))
+                databaseName = $"{databaseName}{_ravenDumpExtension}";
+
             var filePath = Path.Combine(BackupDir, databaseName);
 
             return filePath;

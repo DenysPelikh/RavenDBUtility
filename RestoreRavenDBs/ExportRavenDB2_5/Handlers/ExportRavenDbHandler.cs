@@ -13,8 +13,6 @@ namespace ExportRavenDB2_5.Handlers
         private readonly ILogger _logger;
         private readonly ISmugglerWrapper _smugglerWrapper;
 
-        private readonly string _backupDir;
-        private readonly string _ravenDumpExtension;
         public ExportRavenDbHandler(IDocumentStore store, ILogger logger, ISmugglerWrapper smugglerWrapper, string backupDir = null)
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
@@ -25,10 +23,10 @@ namespace ExportRavenDB2_5.Handlers
             _logger = logger;
             _smugglerWrapper = smugglerWrapper;
 
-            _backupDir = backupDir ?? string.Empty; //From current Dir
-            _ravenDumpExtension = ".ravendump";
+            var backupDir1 = backupDir ?? string.Empty;
+            
 
-            smugglerWrapper.BackupDir = _backupDir;
+            smugglerWrapper.BackupDir = backupDir1;
         }
 
         public void SmugglerFullExport(Func<string, bool> conditionForDatabaseName = null)
