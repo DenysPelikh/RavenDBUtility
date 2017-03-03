@@ -17,6 +17,8 @@ namespace RestoreRavenDB.Common
 
         private readonly double _breakTimeSeconds;
 
+        private readonly string _ravenDumpExtension;
+
         private string _backupDir;
         public string BackupDir
         {
@@ -48,6 +50,8 @@ namespace RestoreRavenDB.Common
 
             _breakTimeSeconds = 5;
             BackupDir = string.Empty; //From current Dir
+
+            _ravenDumpExtension = ".ravendump";
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
@@ -115,12 +119,13 @@ namespace RestoreRavenDB.Common
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
-        public void ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
+        public bool ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
         {
+            var success = true;
             if (string.IsNullOrWhiteSpace(databaseName))
             {
                 _logger.Warning("Database name incorrectly");
-                return;
+                return false;
             }
 
             _logger.Information("Import database {0} with process", databaseName);
@@ -164,7 +169,10 @@ namespace RestoreRavenDB.Common
             catch (Exception ex)
             {
                 _logger.Error(ex, $"An error occurred while trying to backup {databaseName} with exception: {ex}");
+                success = false;
             }
+
+            return success;
         }
 
         public void ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
@@ -200,6 +208,9 @@ namespace RestoreRavenDB.Common
 
         private string GetFilePathFromDatabaseName(string databaseName)
         {
+            if (!databaseName.EndsWith(_ravenDumpExtension))
+                databaseName = $"{databaseName}{_ravenDumpExtension}";
+
             var filePath = Path.Combine(BackupDir, databaseName);
 
             return filePath;

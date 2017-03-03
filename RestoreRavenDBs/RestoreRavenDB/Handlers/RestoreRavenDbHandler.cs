@@ -101,9 +101,11 @@ namespace RestoreRavenDB.Handlers
             {
                 _logger.Information("The database to restore = {0}", databaseName);
 
-                CreateDatabase(databaseName);
+                CreateDatabase(databaseName, GetAdditionalBundles(databaseName));
 
                 _smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import");
+
+                ActivateBundles(databaseName);
             }
         }
 
@@ -117,9 +119,12 @@ namespace RestoreRavenDB.Handlers
 
             DeleteDatabase(databaseName);
 
-            CreateDatabase(databaseName);
+            CreateDatabase(databaseName, GetAdditionalBundles(databaseName));
 
-            _smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import");
+            if (_smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import"))
+            {
+                ActivateBundles(databaseName);
+            }
         }
 
         public void CreateDatabase(string databaseName, params string[] additionalBundles)
@@ -175,6 +180,58 @@ namespace RestoreRavenDB.Handlers
                 crypt.GenerateKey();
                 return Convert.ToBase64String(crypt.Key);
             }
+        }
+
+        private static string[] GetAdditionalBundles(string databaseName)
+        {
+            var additionalBundles = new List<string>();
+            if (databaseName.StartsWith("cs.RA", StringComparison.OrdinalIgnoreCase))
+            {
+                additionalBundles.Add("Versioning");
+            }
+
+            return additionalBundles.ToArray();
+        }
+
+        private void ActivateBundles(string databaseName)
+        {
+            if (databaseName.StartsWith("cs.RA", StringComparison.OrdinalIgnoreCase))
+            {
+                ActivateBundle("Unique Constraints", databaseName);
+            }
+        }
+
+        /// <summary>
+        /// Ensure a bundle is activated
+        /// </summary>
+        /// <param name="bundleName"></param>
+        /// <param name="databaseName"></param>
+        public void ActivateBundle(string bundleName, string databaseName)
+        {
+            _logger.Information("Activating {0} bundle on {1}", bundleName, databaseName);
+            try
+            {
+                using (var session = _store.OpenSession())
+                {
+                    var databaseDocument = session.Load<DatabaseDocument>("Raven/Databases/" + databaseName);
+
+                    session.Advanced.GetMetadataFor(databaseDocument)[Constants.AllowBundlesChange] = true;
+
+                    var settings = databaseDocument.Settings;
+                    var activeBundles = settings.ContainsKey(Constants.ActiveBundles) ? settings[Constants.ActiveBundles] : null;
+                    if (string.IsNullOrEmpty(activeBundles))
+                        settings[Constants.ActiveBundles] = bundleName;
+                    else if (!activeBundles.Split(new char[] { ';' }).Contains(bundleName, StringComparer.OrdinalIgnoreCase))
+                        settings[Constants.ActiveBundles] = activeBundles + ";" + bundleName;
+                    session.SaveChanges();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"An error occurred while trying to activate bundle: {ex}");
+            }
+            
+            _logger.Information("Bundle Activated!");
         }
     }
 }
