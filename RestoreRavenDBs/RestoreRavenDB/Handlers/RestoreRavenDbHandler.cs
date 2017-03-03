@@ -64,7 +64,7 @@ namespace RestoreRavenDB.Handlers
 
             foreach (var databaseName in filteredDatabaseNames)
             {
-                _smugglerWrapper.ExportDatabaseNativeProcess(databaseName);
+                _smugglerWrapper.ExportDatabaseNativeProcess(databaseName, "--operate-on-types=Documents");
             }
         }
 
@@ -76,7 +76,7 @@ namespace RestoreRavenDB.Handlers
                 return;
             }
 
-            _smugglerWrapper.ExportDatabaseNativeProcess(databaseName);
+            _smugglerWrapper.ExportDatabaseNativeProcess(databaseName, "--operate-on-types=Documents");
         }
 
         public void SmugglerFullImport(Func<string, bool> conditionForDatabaseName = null)

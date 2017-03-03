@@ -201,6 +201,11 @@ namespace RestoreRavenDB.Common
             var fileName = $"{databaseName}{_ravenDumpExtension}";
             var filePath = Path.Combine(BackupDir, fileName);
 
+            if (!Directory.Exists(filePath))
+            {
+                Directory.CreateDirectory(filePath);
+            }
+
             return filePath;
         }
 
