@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("RestoreRavenDBs")]
+[assembly: AssemblyTitle("RestoreRavenDB")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("RestoreRavenDBs")]
+[assembly: AssemblyProduct("RestoreRavenDB")]
 [assembly: AssemblyCopyright("Copyright ©  2017")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("4d21710a-83b1-467a-b169-53c6fc5f6bea")]
+[assembly: Guid("367986bf-5824-4960-8c8d-1b45b3647b37")]
 
 // Version information for an assembly consists of the following four values:
 //

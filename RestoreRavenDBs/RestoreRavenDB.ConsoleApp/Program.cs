@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Configuration;
 using Raven.Client.Document;
-using RestoreRavenDBs.Handlers;
 using Serilog;
+using System.Configuration;
+using RestoreRavenDB.Common;
+using RestoreRavenDB.Handlers;
 
-namespace RestoreRavenDBs
+namespace RestoreRavenDB.ConsoleApp
 {
     class Program
     {
@@ -13,7 +14,7 @@ namespace RestoreRavenDBs
             var configuration = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.ColoredConsole()
-                .WriteTo.File(AppDomain.CurrentDomain.BaseDirectory + "log.txt");
+                .WriteTo.RollingFile(AppDomain.CurrentDomain.BaseDirectory + "\\logs\\log-{Date}.txt");
             var logger = configuration.CreateLogger();
 
             var ravenUrl = ConfigurationManager.AppSettings["RavenDbUrl"];
@@ -24,7 +25,10 @@ namespace RestoreRavenDBs
             };
             store.Initialize();
 
-            var restoreRavenDbHandler = new RestoreRavenDbHandler(store, logger);
+            var backupDir = ConfigurationManager.AppSettings["DefaultBackupDir"];
+
+            var smugglerWrapper = new SmugglerWrapper(store, logger);
+            var restoreRavenDbHandler = new RestoreRavenDbHandler(store, logger, smugglerWrapper, backupDir);
 
             Console.WriteLine("Choose an action:");
             Console.WriteLine("1 - Smuggler Full Export");

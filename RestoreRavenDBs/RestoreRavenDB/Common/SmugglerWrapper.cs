@@ -8,7 +8,7 @@ using Raven.Client;
 using Raven.Smuggler;
 using Serilog;
 
-namespace RestoreRavenDBs.Common
+namespace RestoreRavenDB.Common
 {
     public class SmugglerWrapper : ISmugglerWrapper
     {
@@ -18,28 +18,45 @@ namespace RestoreRavenDBs.Common
         private readonly double _breakTimeSeconds;
         private readonly string _ravenDumpExtension;
 
-        //TODO: need to add check on exist
-        public string BackupDir { get; set; }
+        private string _backupDir;
+        public string BackupDir
+        {
+            get
+            {
+                return _backupDir;
+            }
+            set
+            {
+                if (value == null)
+                    throw new ArgumentNullException(nameof(value));
+
+                _backupDir = value;
+            }
+        }
 
         public SmugglerWrapper(IDocumentStore store, ILogger logger)
         {
+            if (store == null) throw new ArgumentNullException(nameof(store));
+            if (logger == null) throw new ArgumentNullException(nameof(logger));
+
             _store = store;
             _logger = logger;
 
             _ravenDumpExtension = ".ravendump";
             _breakTimeSeconds = 5;
-        }
 
-        public SmugglerWrapper(IDocumentStore store, ILogger logger, string backupDir)
-            : this(store, logger)
-        {
-            //TODO: need to add check on exist
-            BackupDir = backupDir;
+            BackupDir = string.Empty; //From current Dir
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
         public void ExportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
         {
+            if (string.IsNullOrWhiteSpace(databaseName))
+            {
+                _logger.Warning("Database name incorrectly");
+                return;
+            }
+
             _logger.Information("Export database {0} with process", databaseName);
 
             var filePath = GetFilePathFromDatabaseName(databaseName);
@@ -65,6 +82,12 @@ namespace RestoreRavenDBs.Common
 
         public void ExportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToExport = ItemType.Documents)
         {
+            if (string.IsNullOrWhiteSpace(databaseName))
+            {
+                _logger.Warning("Database name incorrectly");
+                return;
+            }
+
             _logger.Information("Export database {0} with Smuggler Api", databaseName);
 
             var filePath = GetFilePathFromDatabaseName(databaseName);
@@ -92,6 +115,12 @@ namespace RestoreRavenDBs.Common
         //We use Console Process and Smuggler.exe 3.5 for this
         public void ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
         {
+            if (string.IsNullOrWhiteSpace(databaseName))
+            {
+                _logger.Warning("Database name incorrectly");
+                return;
+            }
+
             _logger.Information("Import database {0} with process", databaseName);
 
             var filePath = GetFilePathFromDatabaseName(databaseName);
@@ -138,6 +167,12 @@ namespace RestoreRavenDBs.Common
 
         public void ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
         {
+            if (string.IsNullOrWhiteSpace(databaseName))
+            {
+                _logger.Warning("Database name incorrectly");
+                return;
+            }
+
             _logger.Information("Import database {0} with Smuggler Api", databaseName);
 
             var filePath = GetFilePathFromDatabaseName(databaseName);

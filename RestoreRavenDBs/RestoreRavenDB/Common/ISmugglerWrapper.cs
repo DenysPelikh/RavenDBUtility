@@ -1,6 +1,6 @@
 ﻿using Raven.Abstractions.Smuggler;
 
-namespace RestoreRavenDBs.Common
+namespace RestoreRavenDB.Common
 {
     public interface ISmugglerWrapper
     {

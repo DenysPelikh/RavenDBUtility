@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using Raven.Abstractions.Data;
 using Raven.Client;
-using RestoreRavenDBs.Common;
-using RestoreRavenDBs.Extensions;
+using RestoreRavenDB.Common;
+using RestoreRavenDB.Extensions;
 using Serilog;
 
-namespace RestoreRavenDBs.Handlers
+namespace RestoreRavenDB.Handlers
 {
     public class RestoreRavenDbHandler : IRestoreRavenDbHandler
     {
@@ -21,15 +20,20 @@ namespace RestoreRavenDBs.Handlers
         private readonly string _backupDir;
         private readonly string _ravenDumpExtension;
 
-        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, string backupDir = null, ISmugglerWrapper smugglerWrapper = null)
+        public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, ISmugglerWrapper smugglerWrapper, string backupDir = null)
         {
+            if (store == null) throw new ArgumentNullException(nameof(store));
+            if (logger == null) throw new ArgumentNullException(nameof(logger));
+            if (smugglerWrapper == null) throw new ArgumentNullException(nameof(smugglerWrapper));
+
             _store = store;
             _logger = logger;
+            _smugglerWrapper = smugglerWrapper;
 
-            _backupDir = backupDir ?? ConfigurationManager.AppSettings["DefaultBackupDir"];
+            _backupDir = backupDir ?? string.Empty; //From current Dir
             _ravenDumpExtension = ".ravendump";
 
-            _smugglerWrapper = smugglerWrapper ?? new SmugglerWrapper(_store, _logger, _backupDir);
+            smugglerWrapper.BackupDir = _backupDir;
         }
 
         public void SmugglerFullExport(Func<string, bool> conditionForDatabaseName = null)
@@ -58,9 +62,9 @@ namespace RestoreRavenDBs.Handlers
 
             _logger.Information("Total databases to backup = " + filteredDatabaseNames.Count);
 
-            foreach (var dbName in filteredDatabaseNames)
+            foreach (var databaseName in filteredDatabaseNames)
             {
-                _smugglerWrapper.ExportDatabaseNativeProcess(dbName);
+                _smugglerWrapper.ExportDatabaseNativeProcess(databaseName);
             }
         }
 
@@ -86,20 +90,20 @@ namespace RestoreRavenDBs.Handlers
 
             var databaseNamesInOrder = files.Select(Path.GetFileNameWithoutExtension).OrderBy(x => x);
 
-            foreach (var dbName in databaseNamesInOrder)
+            foreach (var databaseName in databaseNamesInOrder)
             {
-                DeleteDatabase(dbName);
+                DeleteDatabase(databaseName);
             }
 
             _logger.Information("Done Deleting {0} database", databaseNamesInOrder.Count());
 
-            foreach (var dbName in databaseNamesInOrder)
+            foreach (var databaseName in databaseNamesInOrder)
             {
-                _logger.Information("The database to restore = {0}", dbName);
+                _logger.Information("The database to restore = {0}", databaseName);
 
-                CreateDatabase(dbName);
+                CreateDatabase(databaseName);
 
-                _smugglerWrapper.ImportDatabaseNativeProcess(dbName, "--disable-versioning-during-import");
+                _smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import");
             }
         }
 
@@ -120,7 +124,11 @@ namespace RestoreRavenDBs.Handlers
 
         public void CreateDatabase(string databaseName, params string[] additionalBundles)
         {
-            if (_store.DatabaseExists(databaseName)) return;
+            if (_store.DatabaseExists(databaseName))
+            {
+                _logger.Warning("Database {0} already exists", databaseName);
+                return;
+            }
 
             string[] defaultBundles = { "Encryption", "Compression" };
             var key = GenerateKey();
@@ -147,7 +155,11 @@ namespace RestoreRavenDBs.Handlers
 
         public void DeleteDatabase(string databaseName)
         {
-            if (!_store.DatabaseExists(databaseName)) return;
+            if (!_store.DatabaseExists(databaseName))
+            {
+                _logger.Warning("Database {0} does not exist", databaseName);
+                return;
+            }
 
             _logger.Information("Deleting database = {0}", databaseName);
 

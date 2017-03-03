@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestoreRavenDBs", "RestoreRavenDBs\RestoreRavenDBs.csproj", "{4D21710A-83B1-467A-B169-53C6FC5F6BEA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestoreRavenDB", "RestoreRavenDB\RestoreRavenDB.csproj", "{367986BF-5824-4960-8C8D-1B45B3647B37}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestoreRavenDB.ConsoleApp", "RestoreRavenDB.ConsoleApp\RestoreRavenDB.ConsoleApp.csproj", "{AF2B66AD-F3B7-4037-89E6-F284F957D94D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{4D21710A-83B1-467A-B169-53C6FC5F6BEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4D21710A-83B1-467A-B169-53C6FC5F6BEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4D21710A-83B1-467A-B169-53C6FC5F6BEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4D21710A-83B1-467A-B169-53C6FC5F6BEA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{367986BF-5824-4960-8C8D-1B45B3647B37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{367986BF-5824-4960-8C8D-1B45B3647B37}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{367986BF-5824-4960-8C8D-1B45B3647B37}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{367986BF-5824-4960-8C8D-1B45B3647B37}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF2B66AD-F3B7-4037-89E6-F284F957D94D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF2B66AD-F3B7-4037-89E6-F284F957D94D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF2B66AD-F3B7-4037-89E6-F284F957D94D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF2B66AD-F3B7-4037-89E6-F284F957D94D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
