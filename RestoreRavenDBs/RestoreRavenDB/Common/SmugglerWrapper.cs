@@ -62,14 +62,14 @@ namespace RestoreRavenDB.Common
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var actionPath = $"out {_store.Url} ";
-            var smugglerOptionArguments = $" {string.Join(";", additionalSmugglerArguments)}";
+            var smugglerOptionArguments = $" {string.Join(" ", additionalSmugglerArguments)}";
 
             var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.3.5.exe");
             var smugglerArgs = string.Concat(actionPath, filePath, " --database=", databaseName, smugglerOptionArguments);
 
             try
             {
-                //TODO probably need to add this event when exitCode != 0 or something and alos consider other way
+                //TODO probably need to add this event when exitCode != 0 or something and also consider other way
                 var exitCode = StartSmugglerProcess(smugglerPath, smugglerArgs);
             }
             catch (Exception ex)
@@ -126,7 +126,7 @@ namespace RestoreRavenDB.Common
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var actionPath = $"in {_store.Url} ";
-            var smugglerOptionArguments = $" --negative-metadata-filter:@id=Raven/Encryption/Verification {string.Join(";", additionalSmugglerArguments)}";
+            var smugglerOptionArguments = $" --negative-metadata-filter:@id=Raven/Encryption/Verification {string.Join(" ", additionalSmugglerArguments)}";
 
             var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.3.5.exe");
             var smugglerArgs = string.Concat(actionPath, filePath, " --database=", databaseName, smugglerOptionArguments);
