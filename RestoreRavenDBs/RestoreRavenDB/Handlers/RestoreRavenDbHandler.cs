@@ -103,9 +103,10 @@ namespace RestoreRavenDB.Handlers
 
                 CreateDatabase(databaseName, GetAdditionalBundles(databaseName));
 
-                _smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import");
-
-                ActivateBundles(databaseName);
+                if(_smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import"))
+                {
+                    ActivateBundles(databaseName);
+                }
             }
         }
 
