@@ -1,28 +1,22 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
-using Raven.Abstractions.Data;
-using Raven.Abstractions.Smuggler;
+using ExportRavenDB2_5.Extensions;
 using Raven.Client;
-using Raven.Smuggler;
-using RestoreRavenDB.Extensions;
 using Serilog;
 
-namespace RestoreRavenDB.Common
+namespace ExportRavenDB2_5.Common
 {
-    public class SmugglerWrapper : ISmugglerWrapper
+    public class SmugglerWrapper2_5 : ISmugglerWrapper2_5
     {
         private readonly IDocumentStore _store;
         private readonly ILogger _logger;
 
         private readonly double _breakTimeSeconds;
-        private readonly string _ravenDumpExtension;
-
-        private readonly string _ravenDumpExtension;
 
         private string _backupDir;
+        private readonly string _ravenDumpExtension;
         public string BackupDir
         {
             get
@@ -34,11 +28,16 @@ namespace RestoreRavenDB.Common
                 if (value == null)
                     throw new ArgumentNullException(nameof(value));
 
+                if (value != string.Empty && !Directory.Exists(value))
+                {
+                    Directory.CreateDirectory(value);
+                }
+
                 _backupDir = value;
             }
         }
 
-        public SmugglerWrapper(IDocumentStore store, ILogger logger)
+        public SmugglerWrapper2_5(IDocumentStore store, ILogger logger)
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
             if (logger == null) throw new ArgumentNullException(nameof(logger));
@@ -46,9 +45,10 @@ namespace RestoreRavenDB.Common
             _store = store;
             _logger = logger;
 
-            _ravenDumpExtension = ".ravendump";
             _breakTimeSeconds = 5;
             BackupDir = string.Empty; //From current Dir
+
+            _ravenDumpExtension = ".ravendump";
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
@@ -68,7 +68,7 @@ namespace RestoreRavenDB.Common
             var actionPath = $"out {_store.Url} ";
             var smugglerOptionArguments = $" {string.Join(" ", additionalSmugglerArguments)}";
 
-            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.3.5.exe");
+            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.2.5.exe");
             var smugglerArgs = string.Concat(actionPath, filePath, " --database=", databaseName, smugglerOptionArguments);
 
             try
@@ -84,7 +84,8 @@ namespace RestoreRavenDB.Common
             Thread.Sleep(TimeSpan.FromSeconds(_breakTimeSeconds));
         }
 
-        public void ExportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToExport = ItemType.Documents)
+        //We use Console Process and Smuggler.exe 3.5 for this
+        public void ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
         {
             if (string.IsNullOrWhiteSpace(databaseName))
             {
@@ -92,49 +93,15 @@ namespace RestoreRavenDB.Common
                 return;
             }
 
-            _logger.Information("Export database {0} with Smuggler Api", databaseName);
-
-            BackupDir.EnsureFileDestination();
-            var filePath = GetFilePathFromDatabaseName(databaseName);
-
-            var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
-            {
-                OperateOnTypes = itemTypeToExport,
-                Incremental = false
-            });
-
-            var exportOptions = new SmugglerExportOptions<RavenConnectionStringOptions>
-            {
-                ToFile = filePath,
-                From = new RavenConnectionStringOptions
-                {
-                    DefaultDatabase = databaseName,
-                    Url = _store.Url
-                }
-            };
-
-            //TODO: consider this
-            var operationState = smugglerApi.ExportData(exportOptions).Result;
-        }
-
-        //We use Console Process and Smuggler.exe 3.5 for this
-        public bool ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments)
-        {
-            var success = true;
-            if (string.IsNullOrWhiteSpace(databaseName))
-            {
-                _logger.Warning("Database name incorrectly");
-                return false;
-            }
-
             _logger.Information("Import database {0} with process", databaseName);
 
+            BackupDir.EnsureFileDestination();
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var actionPath = $"in {_store.Url} ";
             var smugglerOptionArguments = $" --negative-metadata-filter:@id=Raven/Encryption/Verification {string.Join(" ", additionalSmugglerArguments)}";
 
-            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.3.5.exe");
+            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.2.5.exe");
             var smugglerArgs = string.Concat(actionPath, filePath, " --database=", databaseName, smugglerOptionArguments);
 
             try
@@ -168,66 +135,7 @@ namespace RestoreRavenDB.Common
             catch (Exception ex)
             {
                 _logger.Error(ex, $"An error occurred while trying to backup {databaseName} with exception: {ex}");
-                success = false;
             }
-
-            return success;
-        }
-
-        public bool ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
-        {
-            var success = true;
-            try
-            {
-                if (string.IsNullOrWhiteSpace(databaseName))
-                {
-                    _logger.Warning("Database name incorrectly");
-                    success = false;
-                }
-
-                _logger.Information("Import database {0} with Smuggler Api", databaseName);
-
-                var filePath = GetFilePathFromDatabaseName(databaseName);
-
-                var filters = new List<FilterSetting>
-                {
-                    new FilterSetting
-                    {
-                        Path = "@metadata.@id",
-                        ShouldMatch = false,
-                        Values = new List<string> { "Raven/Encryption/Verification" }
-                    }
-                };
-
-
-                var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
-                {
-                    OperateOnTypes = itemTypeToImport,
-                    Incremental = false,
-                    ShouldDisableVersioningBundle = true,
-                    Filters = filters
-                });
-
-                var importOptions = new SmugglerImportOptions<RavenConnectionStringOptions>
-                {
-                    FromFile = filePath,
-                    To = new RavenConnectionStringOptions
-                    {
-                        DefaultDatabase = databaseName,
-                        Url = _store.Url
-                    },
-                    
-                };
-
-                smugglerApi.ImportData(importOptions).Wait();
-            }
-            catch (Exception ex)
-            {
-                _logger.Information("Import database failed: {0}", ex);
-                success = false;
-            }
-
-            return success;
         }
 
         private string GetFilePathFromDatabaseName(string databaseName)
