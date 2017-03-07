@@ -78,10 +78,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Common\ISmugglerWrapper.cs" />
-    <Compile Include="Common\SmugglerWrapper.cs" />
-    <Compile Include="Handlers\ExportRavenDbHandler.cs" />
-    <Compile Include="Handlers\IExportRavenDbHandler.cs" />
+    <Compile Include="Common\ISmugglerWrapper2_5.cs" />
+    <Compile Include="Common\SmugglerWrapper2_5.cs" />
+    <Compile Include="Extensions\StringExtensions.cs" />
+    <Compile Include="Handlers\ExportRavenDbHandler2_5.cs" />
+    <Compile Include="Handlers\IExportRavenDbHandler2_5.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -89,7 +90,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Raven.Smuggler.exe">
+    <Content Include="Raven.Smuggler.2.5.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

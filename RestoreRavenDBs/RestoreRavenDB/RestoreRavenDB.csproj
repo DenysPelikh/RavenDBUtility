@@ -60,6 +60,7 @@
     <Compile Include="Common\ISmugglerWrapper.cs" />
     <Compile Include="Common\SmugglerWrapper.cs" />
     <Compile Include="Extensions\DocumentStoreExtension.cs" />
+    <Compile Include="Extensions\StringExtensions.cs" />
     <Compile Include="Handlers\IRestoreRavenDbHandler.cs" />
     <Compile Include="Handlers\RestoreRavenDbHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

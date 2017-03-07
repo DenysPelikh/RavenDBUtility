@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ExportRavenDB2_5.Handlers
 {
-    internal interface IExportRavenDbHandler
+    internal interface IExportRavenDbHandler2_5
     {
         void SmugglerFullExport(Func<string, bool> conditionForDatabaseName = null);
         void SmugglerFullExport(string databaseName);

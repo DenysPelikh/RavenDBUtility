@@ -2,12 +2,13 @@
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using ExportRavenDB2_5.Extensions;
 using Raven.Client;
 using Serilog;
 
 namespace ExportRavenDB2_5.Common
 {
-    public class SmugglerWrapper : ISmugglerWrapper
+    public class SmugglerWrapper2_5 : ISmugglerWrapper2_5
     {
         private readonly IDocumentStore _store;
         private readonly ILogger _logger;
@@ -36,7 +37,7 @@ namespace ExportRavenDB2_5.Common
             }
         }
 
-        public SmugglerWrapper(IDocumentStore store, ILogger logger)
+        public SmugglerWrapper2_5(IDocumentStore store, ILogger logger)
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
             if (logger == null) throw new ArgumentNullException(nameof(logger));
@@ -61,12 +62,13 @@ namespace ExportRavenDB2_5.Common
 
             _logger.Information("Export database {0} with process", databaseName);
 
+            BackupDir.EnsureFileDestination();
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var actionPath = $"out {_store.Url} ";
             var smugglerOptionArguments = $" {string.Join(" ", additionalSmugglerArguments)}";
 
-            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.exe");
+            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.2.5.exe");
             var smugglerArgs = string.Concat(actionPath, filePath, " --database=", databaseName, smugglerOptionArguments);
 
             try
@@ -93,12 +95,13 @@ namespace ExportRavenDB2_5.Common
 
             _logger.Information("Import database {0} with process", databaseName);
 
+            BackupDir.EnsureFileDestination();
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var actionPath = $"in {_store.Url} ";
             var smugglerOptionArguments = $" --negative-metadata-filter:@id=Raven/Encryption/Verification {string.Join(" ", additionalSmugglerArguments)}";
 
-            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.exe");
+            var smugglerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Raven.Smuggler.2.5.exe");
             var smugglerArgs = string.Concat(actionPath, filePath, " --database=", databaseName, smugglerOptionArguments);
 
             try

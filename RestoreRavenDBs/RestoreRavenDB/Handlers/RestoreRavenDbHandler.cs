@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using Raven.Abstractions.Data;
+using Raven.Abstractions.Smuggler;
 using Raven.Client;
 using RestoreRavenDB.Common;
 using RestoreRavenDB.Extensions;
@@ -19,6 +20,7 @@ namespace RestoreRavenDB.Handlers
 
         private readonly string _backupDir;
         private readonly string _ravenDumpExtension;
+        private bool _useSmugglerApi = true;
 
         public RestoreRavenDbHandler(IDocumentStore store, ILogger logger, ISmugglerWrapper smugglerWrapper, string backupDir = null)
         {
@@ -101,12 +103,7 @@ namespace RestoreRavenDB.Handlers
             {
                 _logger.Information("The database to restore = {0}", databaseName);
 
-                CreateDatabase(databaseName, GetAdditionalBundles(databaseName));
-
-                if(_smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import"))
-                {
-                    ActivateBundles(databaseName);
-                }
+                ImportDatabase(databaseName);
             }
         }
 
@@ -120,14 +117,36 @@ namespace RestoreRavenDB.Handlers
 
             DeleteDatabase(databaseName);
 
-            CreateDatabase(databaseName, GetAdditionalBundles(databaseName));
-
-            if (_smugglerWrapper.ImportDatabaseNativeProcess(databaseName, "--disable-versioning-during-import"))
-            {
-                ActivateBundles(databaseName);
-            }
+            ImportDatabase(databaseName);
         }
 
+        private void ImportDatabase(string databaseName)
+        {
+            CreateDatabase(databaseName, GetAdditionalBundles(databaseName));
+
+            if (_useSmugglerApi)
+            {
+                // I'm importing the indexes first, as it's quicker to reset them this way, and bypasses any
+                if (_smugglerWrapper.ImportDatabaseSmugglerApi(databaseName, ItemType.Indexes | ItemType.Transformers | ItemType.Attachments | ItemType.RemoveAnalyzers))
+                {
+                    ResetIndexes(databaseName);
+
+                    if (_smugglerWrapper.ImportDatabaseSmugglerApi(databaseName)) // Import Documents only
+                    {
+                        ActivateBundles(databaseName);
+                    }
+                }
+            }
+            else
+            {
+                var importArgs = GetImportArgs(databaseName);
+                if (_smugglerWrapper.ImportDatabaseNativeProcess(databaseName, importArgs))
+                {
+                    ResetIndexes(databaseName);
+                    ActivateBundles(databaseName);
+                }
+            }
+        }
         public void CreateDatabase(string databaseName, params string[] additionalBundles)
         {
             if (_store.DatabaseExists(databaseName))
@@ -226,13 +245,42 @@ namespace RestoreRavenDB.Handlers
                         settings[Constants.ActiveBundles] = activeBundles + ";" + bundleName;
                     session.SaveChanges();
                 }
+
+                _logger.Information("Bundle Activated!");
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, $"An error occurred while trying to activate bundle: {ex}");
             }
-            
-            _logger.Information("Bundle Activated!");
+        }
+
+        private string[] GetImportArgs(string databaseName)
+        {
+            return new[] { "--disable-versioning-during-import=true" };
+        }
+
+        private void ResetIndexes(string databaseName)
+        {
+            _logger.Information("Resetting indexes");
+            var indexes = _store.DatabaseCommands.ForDatabase(databaseName).GetIndexes(0, 100);
+
+            foreach (var index in indexes)
+            {
+                try
+                {
+                    if (!index.IsCompiled)
+                    {
+                        _logger.Information("Resetting index: {0}", index.Name);
+                        _store.DatabaseCommands.ForDatabase(databaseName).GlobalAdmin.Commands.ResetIndex(index.Name);
+                        _logger.Information("Reset successful.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error("Unable to reset index {0}: {1}", index.Name, ex);
+                }
+
+            }
         }
     }
 }

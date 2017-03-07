@@ -27,8 +27,8 @@ namespace ExportRavenDB2_5.ConsoleApp
 
             var backupDir = ConfigurationManager.AppSettings["DefaultBackupDir"];
 
-            var smugglerWrapper = new SmugglerWrapper(store, logger);
-            var exportRavenDbHandler = new ExportRavenDbHandler(store, logger, smugglerWrapper, backupDir);
+            var smugglerWrapper = new SmugglerWrapper2_5(store, logger);
+            var exportRavenDbHandler = new ExportRavenDbHandler2_5(store, logger, smugglerWrapper, backupDir);
 
             Console.WriteLine("Choose an action:");
             Console.WriteLine("1 - Smuggler Full Export");

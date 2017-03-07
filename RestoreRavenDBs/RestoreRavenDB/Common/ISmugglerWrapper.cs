@@ -8,6 +8,6 @@ namespace RestoreRavenDB.Common
         void ExportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments);
         void ExportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToExport = ItemType.Documents);
         bool ImportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments);
-        void ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents);
+        bool ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents);
     }
 }

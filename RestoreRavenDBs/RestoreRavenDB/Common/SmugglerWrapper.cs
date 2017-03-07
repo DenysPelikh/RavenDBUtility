@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -6,6 +7,7 @@ using Raven.Abstractions.Data;
 using Raven.Abstractions.Smuggler;
 using Raven.Client;
 using Raven.Smuggler;
+using RestoreRavenDB.Extensions;
 using Serilog;
 
 namespace RestoreRavenDB.Common
@@ -31,11 +33,6 @@ namespace RestoreRavenDB.Common
                 if (value == null)
                     throw new ArgumentNullException(nameof(value));
 
-                if (value != string.Empty && !Directory.Exists(value))
-                {
-                    Directory.CreateDirectory(value);
-                }
-
                 _backupDir = value;
             }
         }
@@ -48,10 +45,9 @@ namespace RestoreRavenDB.Common
             _store = store;
             _logger = logger;
 
+            _ravenDumpExtension = ".ravendump";
             _breakTimeSeconds = 5;
             BackupDir = string.Empty; //From current Dir
-
-            _ravenDumpExtension = ".ravendump";
         }
 
         //We use Console Process and Smuggler.exe 3.5 for this
@@ -65,6 +61,7 @@ namespace RestoreRavenDB.Common
 
             _logger.Information("Export database {0} with process", databaseName);
 
+            BackupDir.EnsureFileDestination();
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var actionPath = $"out {_store.Url} ";
@@ -96,6 +93,7 @@ namespace RestoreRavenDB.Common
 
             _logger.Information("Export database {0} with Smuggler Api", databaseName);
 
+            BackupDir.EnsureFileDestination();
             var filePath = GetFilePathFromDatabaseName(databaseName);
 
             var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
@@ -175,35 +173,60 @@ namespace RestoreRavenDB.Common
             return success;
         }
 
-        public void ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
+        public bool ImportDatabaseSmugglerApi(string databaseName, ItemType itemTypeToImport = ItemType.Documents)
         {
-            if (string.IsNullOrWhiteSpace(databaseName))
+            var success = true;
+            try
             {
-                _logger.Warning("Database name incorrectly");
-                return;
+                if (string.IsNullOrWhiteSpace(databaseName))
+                {
+                    _logger.Warning("Database name incorrectly");
+                    success = false;
+                }
+
+                _logger.Information("Import database {0} with Smuggler Api", databaseName);
+
+                var filePath = GetFilePathFromDatabaseName(databaseName);
+
+                var filters = new List<FilterSetting>
+                {
+                    new FilterSetting
+                    {
+                        Path = "@metadata.@id",
+                        ShouldMatch = false,
+                        Values = new List<string> { "Raven/Encryption/Verification" }
+                    }
+                };
+
+
+                var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
+                {
+                    OperateOnTypes = itemTypeToImport,
+                    Incremental = false,
+                    ShouldDisableVersioningBundle = true,
+                    Filters = filters
+                });
+
+                var importOptions = new SmugglerImportOptions<RavenConnectionStringOptions>
+                {
+                    FromFile = filePath,
+                    To = new RavenConnectionStringOptions
+                    {
+                        DefaultDatabase = databaseName,
+                        Url = _store.Url
+                    },
+                    
+                };
+
+                smugglerApi.ImportData(importOptions).Wait();
+            }
+            catch (Exception ex)
+            {
+                _logger.Information("Import database failed: {0}", ex);
+                success = false;
             }
 
-            _logger.Information("Import database {0} with Smuggler Api", databaseName);
-
-            var filePath = GetFilePathFromDatabaseName(databaseName);
-
-            var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
-            {
-                OperateOnTypes = itemTypeToImport,
-                Incremental = false
-            });
-
-            var importOptions = new SmugglerImportOptions<RavenConnectionStringOptions>
-            {
-                FromFile = filePath,
-                To = new RavenConnectionStringOptions
-                {
-                    DefaultDatabase = databaseName,
-                    Url = _store.Url
-                }
-            };
-
-            smugglerApi.ImportData(importOptions, null).Wait();
+            return success;
         }
 
         private string GetFilePathFromDatabaseName(string databaseName)

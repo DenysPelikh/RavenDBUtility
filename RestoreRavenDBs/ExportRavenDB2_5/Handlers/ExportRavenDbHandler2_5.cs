@@ -7,13 +7,13 @@ using Serilog;
 
 namespace ExportRavenDB2_5.Handlers
 {
-    public class ExportRavenDbHandler : IExportRavenDbHandler
+    public class ExportRavenDbHandler2_5 : IExportRavenDbHandler2_5
     {
         private readonly IDocumentStore _store;
         private readonly ILogger _logger;
-        private readonly ISmugglerWrapper _smugglerWrapper;
+        private readonly ISmugglerWrapper2_5 _smugglerWrapper;
 
-        public ExportRavenDbHandler(IDocumentStore store, ILogger logger, ISmugglerWrapper smugglerWrapper, string backupDir = null)
+        public ExportRavenDbHandler2_5(IDocumentStore store, ILogger logger, ISmugglerWrapper2_5 smugglerWrapper, string backupDir = null)
         {
             if (store == null) throw new ArgumentNullException(nameof(store));
             if (logger == null) throw new ArgumentNullException(nameof(logger));

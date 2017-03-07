@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ExportRavenDB2_5.Common
 {
-    public interface ISmugglerWrapper
+    public interface ISmugglerWrapper2_5
     {
         string BackupDir { get; set; }
         void ExportDatabaseNativeProcess(string databaseName, params string[] additionalSmugglerArguments);
