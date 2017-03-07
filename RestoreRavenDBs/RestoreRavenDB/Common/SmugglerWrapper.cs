@@ -20,8 +20,6 @@ namespace RestoreRavenDB.Common
         private readonly double _breakTimeSeconds;
         private readonly string _ravenDumpExtension;
 
-        private readonly string _ravenDumpExtension;
-
         private string _backupDir;
         public string BackupDir
         {
@@ -198,7 +196,6 @@ namespace RestoreRavenDB.Common
                         Values = new List<string> { "Raven/Encryption/Verification" }
                     }
                 };
-
 
                 var smugglerApi = new SmugglerDatabaseApi(new SmugglerDatabaseOptions
                 {
